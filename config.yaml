@@ -1,0 +1,77 @@
+data:
+  base_url: "https://fapi.binance.com"
+  cache_dir: "data/raw"
+  dataset_dir: "data/processed"
+  symbols_file: "data/symbols.json"
+  refresh_top_symbols: false
+  lookback_days: 730
+  top_n_altcoins: 12
+  timeframes: ["4h", "1h", "30m", "15m", "5m"]
+  base_timeframe: "5m"
+  min_request_interval_seconds: 0.25
+
+features:
+  lag_periods: [1, 2, 3, 6, 12]
+  btc_market_regime:
+    enabled: false
+    timeframe: "1h"
+    ema_fast: 50
+    ema_slow: 200
+  indicator_windows:
+    rsi: 14
+    atr: 14
+    bollinger: 20
+    volume_profile: 96
+
+label:
+  max_holding_bars_5m: 48
+  take_profit_pct: 0.035
+  stop_loss_pct: 0.02
+
+label_optimization:
+  enabled: false
+  tp_candidates: [0.015, 0.02, 0.025, 0.03, 0.035]
+  sl_candidates: [0.01, 0.015, 0.02, 0.025]
+  n_jobs: -2
+  lightweight_estimators: 75
+  validation_splits: 3
+
+split:
+  backtest_months: 1
+  n_time_series_splits: 5
+
+model:
+  output_dir: "models"
+  random_state: 42
+  min_recall_for_threshold: 0.003
+  threshold_optimization:
+    objective: "profit_factor"
+    min_precision: 0.4
+    min_trades: 80
+    min_profit_factor: 1.0
+    fallback_threshold: 0.70
+  params:
+    n_estimators: 500
+    max_depth: 4
+    learning_rate: 0.03
+    subsample: 0.75
+    colsample_bytree: 0.75
+    min_child_weight: 5
+    reg_alpha: 0.1
+    reg_lambda: 2.0
+    objective: "binary:logistic"
+    eval_metric: "logloss"
+    tree_method: "hist"
+
+backtest:
+  fee_rate: 0.0004
+  initial_balance_usdt: 1000
+  fixed_margin_usdt: 15
+  leverage: 10
+  max_concurrent_positions: 6
+
+live:
+  poll_seconds: 60
+  fixed_margin_usdt: 15
+  leverage: 10
+  max_positions: 6
