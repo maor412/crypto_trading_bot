@@ -8,6 +8,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 from dotenv import load_dotenv
+from joblib import Parallel, delayed
 
 from .backtest import run_backtest
 from .binance_client import BinanceFuturesClient
@@ -19,10 +20,24 @@ from .modeling import chronological_split, feature_columns, optimize_threshold, 
 from .optimize_targets import optimize_label_targets
 
 
+def processing_jobs(config: dict) -> int:
+    return max(1, int(config.get("processing", {}).get("n_jobs", 1)))
+
+
+def build_symbol_feature_frame(symbol: str, market_data: dict[str, dict[str, pd.DataFrame]], config: dict) -> pd.DataFrame:
+    print(f"Building features for {symbol}...", flush=True)
+    return build_symbol_dataset(symbol, market_data, config)
+
+
 def build_feature_dataset(symbols: list[str], market_data: dict[str, dict[str, pd.DataFrame]], config: dict) -> pd.DataFrame:
-    frames = []
-    for symbol in symbols:
-        frames.append(build_symbol_dataset(symbol, market_data, config))
+    n_jobs = processing_jobs(config)
+    if n_jobs == 1:
+        frames = [build_symbol_feature_frame(symbol, market_data, config) for symbol in symbols]
+    else:
+        frames = Parallel(n_jobs=n_jobs, prefer="threads")(
+            delayed(build_symbol_feature_frame)(symbol, market_data, config)
+            for symbol in symbols
+        )
     dataset = pd.concat(frames, ignore_index=True).sort_values(["open_time", "symbol"])
     dataset["open_time"] = pd.to_datetime(dataset["open_time"], utc=True)
     if "close_time" in dataset.columns:
@@ -32,15 +47,43 @@ def build_feature_dataset(symbols: list[str], market_data: dict[str, dict[str, p
     return dataset
 
 
+def label_symbol_feature_frame(
+    symbol: str,
+    symbol_frame: pd.DataFrame,
+    config: dict,
+    confirmation_15m: pd.DataFrame | None,
+) -> pd.DataFrame:
+    print(f"Building labels for {symbol}...", flush=True)
+    return add_long_labels(symbol_frame.sort_values("open_time"), config, confirmation_15m)
+
+
 def apply_target_labels(
     feature_dataset: pd.DataFrame,
     config: dict,
     market_data: dict[str, dict[str, pd.DataFrame]] | None = None,
 ) -> pd.DataFrame:
-    frames = []
-    for symbol, symbol_frame in feature_dataset.sort_values(["symbol", "open_time"]).groupby("symbol", sort=False):
-        confirmation_15m = market_data.get(symbol, {}).get("15m") if market_data is not None else None
-        frames.append(add_long_labels(symbol_frame, config, confirmation_15m))
+    groups = list(feature_dataset.groupby("symbol", sort=False))
+    n_jobs = processing_jobs(config)
+    if n_jobs == 1:
+        frames = [
+            label_symbol_feature_frame(
+                symbol,
+                symbol_frame,
+                config,
+                market_data.get(symbol, {}).get("15m") if market_data is not None else None,
+            )
+            for symbol, symbol_frame in groups
+        ]
+    else:
+        frames = Parallel(n_jobs=n_jobs, prefer="threads")(
+            delayed(label_symbol_feature_frame)(
+                symbol,
+                symbol_frame,
+                config,
+                market_data.get(symbol, {}).get("15m") if market_data is not None else None,
+            )
+            for symbol, symbol_frame in groups
+        )
     dataset = pd.concat(frames, ignore_index=True).sort_values(["open_time", "symbol"])
     cols = feature_columns(dataset)
     dataset = dataset.dropna(subset=cols + ["target", "forward_pnl", "exit_time"])

@@ -4,7 +4,7 @@ Long-only Binance USDT-M Futures research and live-execution scaffold.
 
 The pipeline:
 
-1. Selects the top 12 USDT perpetual altcoins by Binance Futures 24h quote volume, excluding BTC.
+1. Selects the top 35 USDT perpetual altcoins by Binance Futures 24h quote volume, excluding BTC.
 2. Downloads and caches 2 years of klines for 4h, 1h, 30m, 15m, and 5m for those symbols plus BTC.
 3. Builds leakage-safe multi-timeframe features on a 5m decision clock.
 4. Adds BTC market-state features at the same timestamps.
@@ -28,6 +28,11 @@ python -m xgb_trader.pipeline --config config.yaml --mode full
 ```
 
 `--mode full` updates the local kline cache incrementally, rebuilds features, trains, optimizes the threshold, and backtests.
+
+Parallelism is capped in `config.yaml`:
+
+- `data.download_workers: 2` downloads or updates two symbols at a time to limit Binance rate-limit risk.
+- `processing.n_jobs: 4` builds features and labels across symbols using threads, avoiding large dataframe copies.
 
 ```powershell
 python -m xgb_trader.pipeline --config config.yaml --mode download

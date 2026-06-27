@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 import pandas as pd
+from joblib import Parallel, delayed
 
 from .binance_client import BinanceFuturesClient
 
@@ -158,6 +159,31 @@ def cached_klines(
     return frame
 
 
+def download_symbol_market_data(
+    symbol: str,
+    config: dict,
+    start_ms: int,
+    end_ms: int,
+) -> tuple[str, dict[str, pd.DataFrame]]:
+    client = BinanceFuturesClient(
+        config["data"]["base_url"],
+        min_interval_seconds=config["data"]["min_request_interval_seconds"],
+    )
+    print(f"Downloading/updating cache for {symbol}...", flush=True)
+    frames = {
+        timeframe: cached_klines(
+            client,
+            symbol,
+            timeframe,
+            start_ms,
+            end_ms,
+            config["data"]["cache_dir"],
+        )
+        for timeframe in config["data"]["timeframes"]
+    }
+    return symbol, frames
+
+
 def download_market_data(config: dict, client: BinanceFuturesClient) -> tuple[list[str], dict[str, dict[str, pd.DataFrame]]]:
     end = datetime.now(timezone.utc)
     start = end - pd.Timedelta(days=config["data"]["lookback_days"])
@@ -169,18 +195,15 @@ def download_market_data(config: dict, client: BinanceFuturesClient) -> tuple[li
     else:
         symbols = select_top_altcoin_symbols(client, config["data"]["top_n_altcoins"], symbols_path)
     all_symbols = ["BTCUSDT", *symbols]
-    data: dict[str, dict[str, pd.DataFrame]] = {}
-    for symbol in all_symbols:
-        data[symbol] = {}
-        for timeframe in config["data"]["timeframes"]:
-            data[symbol][timeframe] = cached_klines(
-                client,
-                symbol,
-                timeframe,
-                start_ms,
-                end_ms,
-                config["data"]["cache_dir"],
-            )
+    workers = max(1, int(config["data"].get("download_workers", 1)))
+    if workers == 1:
+        pairs = [download_symbol_market_data(symbol, config, start_ms, end_ms) for symbol in all_symbols]
+    else:
+        pairs = Parallel(n_jobs=workers, prefer="threads")(
+            delayed(download_symbol_market_data)(symbol, config, start_ms, end_ms)
+            for symbol in all_symbols
+        )
+    data = dict(pairs)
     return symbols, data
 
 

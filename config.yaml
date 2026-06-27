@@ -3,12 +3,16 @@ data:
   cache_dir: "data/raw"
   dataset_dir: "data/processed"
   symbols_file: "data/symbols.json"
-  refresh_top_symbols: false
+  refresh_top_symbols: true
   lookback_days: 730
-  top_n_altcoins: 12
+  top_n_altcoins: 35
   timeframes: ["4h", "1h", "30m", "15m", "5m"]
   base_timeframe: "5m"
   min_request_interval_seconds: 0.25
+  download_workers: 2
+
+processing:
+  n_jobs: 4
 
 features:
   lag_periods: [1, 2, 3, 6, 12]
