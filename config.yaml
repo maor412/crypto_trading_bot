@@ -50,9 +50,9 @@ model:
   min_recall_for_threshold: 0.003
   threshold_optimization:
     objective: "profit_factor"
-    min_precision: 0.4
-    min_trades: 80
-    min_profit_factor: 1.0
+    min_precision: 0.50
+    min_trades: 25
+    min_profit_factor: 1.5
     fallback_threshold: 0.70
   params:
     n_estimators: 500

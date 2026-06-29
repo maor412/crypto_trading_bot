@@ -137,6 +137,10 @@ def train_and_report(
     reports_dir = Path("reports")
     reports_dir.mkdir(exist_ok=True)
     trades.to_csv(reports_dir / "backtest_trades.csv", index=False)
+    pd.DataFrame(report.get("symbol_performance", [])).to_csv(
+        reports_dir / "backtest_symbol_performance.csv",
+        index=False,
+    )
     (reports_dir / "threshold_metrics.json").write_text(json.dumps(threshold_metrics, indent=2), encoding="utf-8")
     (reports_dir / "backtest_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     if label_optimization_result is not None:
@@ -223,6 +227,10 @@ def backtest_only(dataset_path: Path, config: dict) -> None:
     reports_dir = Path("reports")
     reports_dir.mkdir(exist_ok=True)
     trades.to_csv(reports_dir / "backtest_trades.csv", index=False)
+    pd.DataFrame(report.get("symbol_performance", [])).to_csv(
+        reports_dir / "backtest_symbol_performance.csv",
+        index=False,
+    )
     (reports_dir / "threshold_metrics.json").write_text(json.dumps(threshold_metrics, indent=2), encoding="utf-8")
     (reports_dir / "backtest_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 

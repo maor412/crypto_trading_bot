@@ -4,6 +4,37 @@ import numpy as np
 import pandas as pd
 
 
+def symbol_performance(trade_frame: pd.DataFrame) -> list[dict[str, float | int | str]]:
+    if trade_frame.empty:
+        return []
+    grouped = (
+        trade_frame.groupby("symbol", as_index=False)
+        .agg(
+            trades=("symbol", "size"),
+            wins=("win", "sum"),
+            gross_pnl_usdt=("gross_pnl_usdt", "sum"),
+            fees_usdt=("fees_usdt", "sum"),
+            net_pnl_usdt=("net_pnl_usdt", "sum"),
+            avg_probability=("probability", "mean"),
+        )
+        .sort_values("net_pnl_usdt", ascending=False)
+    )
+    grouped["win_rate"] = grouped["wins"] / grouped["trades"]
+    return [
+        {
+            "symbol": row.symbol,
+            "trades": int(row.trades),
+            "wins": int(row.wins),
+            "win_rate": float(row.win_rate),
+            "gross_pnl_usdt": float(row.gross_pnl_usdt),
+            "fees_usdt": float(row.fees_usdt),
+            "net_pnl_usdt": float(row.net_pnl_usdt),
+            "avg_probability": float(row.avg_probability),
+        }
+        for row in grouped.itertuples(index=False)
+    ]
+
+
 def btc_regime_column(config: dict | None) -> str | None:
     if not config:
         return None
@@ -110,6 +141,7 @@ def run_backtest(
         equity_events.append({"time": position["exit_time"], "balance": balance})
 
     trade_frame = pd.DataFrame(trades)
+    by_symbol = symbol_performance(trade_frame)
     if trade_frame.empty:
         return trade_frame, {
             "total_trades": 0,
@@ -125,6 +157,7 @@ def run_backtest(
             "btc_regime_filter_enabled": regime_col is not None,
             "btc_regime_column": regime_col,
             "regime_blocked_signals": int(regime_blocked_signals),
+            "symbol_performance": by_symbol,
         }
 
     equity = pd.DataFrame(equity_events).sort_values("time")
@@ -146,5 +179,6 @@ def run_backtest(
         "btc_regime_filter_enabled": regime_col is not None,
         "btc_regime_column": regime_col,
         "regime_blocked_signals": int(regime_blocked_signals),
+        "symbol_performance": by_symbol,
     }
     return trade_frame, report
